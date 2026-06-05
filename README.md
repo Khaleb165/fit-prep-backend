@@ -36,10 +36,10 @@ Body:
 
 ```json
 {
-  "username": "caleb",
-  "email": "caleb@example.com",
+  "username": "user",
+  "email": "user@example.com",
   "password": "secret1",
-  "name": "Caleb",
+  "name": "John Doe",
   "timezone": "Africa/Accra"
 }
 ```
@@ -50,7 +50,7 @@ Body:
 
 ```json
 {
-  "username": "caleb",
+  "username": "user",
   "password": "secret1"
 }
 ```
