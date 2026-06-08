@@ -7,7 +7,7 @@ class JwtConfig {
   const JwtConfig({
     required this.secret,
     this.issuer = 'fit_prep_backend',
-    this.expiresIn = const Duration(days: 7),
+    this.expiresIn = const Duration(minutes: 30),
   });
 
   factory JwtConfig.fromEnvironment() {
