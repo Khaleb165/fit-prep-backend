@@ -5,7 +5,6 @@ info:
   version: 1.0.0
 servers:
   - url: http://localhost:8080
-    # description: Local development server
 paths:
   /auth/login:
     post:
@@ -17,26 +16,14 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - username
-                - password
-              properties:
-                username:
-                  type: string
-                password:
-                  type: string
-                  format: password
+              $ref: "#/components/schemas/LoginRequest"
       responses:
         "200":
           description: Successful login
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  token:
-                    type: string
+                $ref: "#/components/schemas/AuthResponse"
         "401":
           description: Unauthorized
   /auth/register:
@@ -49,29 +36,18 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - username
-                - email
-                - password
-              properties:
-                username:
-                  type: string
-                email:
-                  type: string
-                  format: email
-                password:
-                  type: string
-                  format: password
-                name:
-                  type: string
-                timezone:
-                  type: string
+              $ref: "#/components/schemas/RegisterRequest"
       responses:
         "201":
           description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
         "400":
           description: Bad request
+        "409":
+          description: Username or email already exists
   /auth/me:
     get:
       summary: Get current authenticated user
@@ -85,9 +61,121 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
+                type: object
+                properties:
+                  user:
+                    $ref: "#/components/schemas/User"
         "401":
           description: Unauthorized
+  /plans:
+    get:
+      summary: Fetch workout plans
+      tags:
+        - Plans
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Workout plans for the authenticated user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  plans:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Plan"
+        "401":
+          description: Unauthorized
+    post:
+      summary: Create a workout plan
+      tags:
+        - Plans
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlanRequest"
+      responses:
+        "201":
+          description: Plan created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlanResponse"
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+  /plans/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Fetch a workout plan
+      tags:
+        - Plans
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Workout plan details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  plan:
+                    $ref: "#/components/schemas/Plan"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Plan not found
+    patch:
+      summary: Update a workout plan title
+      tags:
+        - Plans
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlanRequest"
+      responses:
+        "200":
+          description: Plan updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlanResponse"
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Plan not found
+    delete:
+      summary: Delete a workout plan
+      tags:
+        - Plans
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Plan deleted successfully
+        "401":
+          description: Unauthorized
+        "404":
+          description: Plan not found
 components:
   securitySchemes:
     bearerAuth:
@@ -95,6 +183,58 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          example: caleb
+        password:
+          type: string
+          format: password
+          example: secret1
+    RegisterRequest:
+      type: object
+      required:
+        - username
+        - email
+        - password
+      properties:
+        username:
+          type: string
+          example: caleb
+        email:
+          type: string
+          format: email
+          example: caleb@example.com
+        password:
+          type: string
+          format: password
+          example: secret1
+        name:
+          type: string
+          example: Caleb
+        timezone:
+          type: string
+          example: Africa/Accra
+    AuthResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+        token:
+          type: string
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+          example: 1800
     User:
       type: object
       properties:
@@ -106,8 +246,94 @@ components:
           type: string
         name:
           type: string
+          nullable: true
         timezone:
           type: string
-        createdAt:
+        created_at:
+          type: string
+          format: date-time
+    PlanRequest:
+      type: object
+      required:
+        - title
+        - items
+        - gym_session
+        - packing_time
+        - reminder
+      properties:
+        title:
+          type: string
+          example: Morning Workout Plan
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlanItem"
+        gym_session:
+          type: string
+          enum:
+            - morning
+            - afternoon
+            - evening
+          example: morning
+        packing_time:
+          type: string
+          pattern: "^\\d{2}:\\d{2}$"
+          example: "07:30"
+        reminder:
+          type: string
+          enum:
+            - on_time
+            - one_hour_before
+          example: one_hour_before
+    PlanResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        plan:
+          $ref: "#/components/schemas/Plan"
+    PlanItem:
+      type: object
+      required:
+        - id
+        - title
+      properties:
+        id:
+          type: string
+          example: item-1
+        title:
+          type: string
+          example: Water bottle
+        is_checked:
+          type: boolean
+          example: false
+    Plan:
+      type: object
+      properties:
+        id:
+          type: string
+        user_id:
+          type: string
+        title:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlanItem"
+        gym_session:
+          type: string
+          enum:
+            - morning
+            - afternoon
+            - evening
+        packing_time:
+          type: string
+          example: "07:30"
+        reminder:
+          type: string
+          enum:
+            - on_time
+            - one_hour_before
+        created_at:
           type: string
           format: date-time
