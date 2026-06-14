@@ -54,7 +54,7 @@ void main() {
 
     expect(response.statusCode, HttpStatus.created);
     expect(body['token'], isA<String>());
-    expect(body['expires_in'], 604800);
+    expect(body['expires_in'], 1800);
     expect(user['username'], 'caleb');
     expect(user['email'], 'caleb@example.com');
     expect(user, isNot(contains('passwordHash')));

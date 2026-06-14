@@ -31,7 +31,7 @@ void main() {
     final storedUser = await userRepository.findByUsername('caleb');
 
     expect(result.token, isNotEmpty);
-    expect(result.expiresInSeconds, 604800);
+    expect(result.expiresInSeconds, 1800);
     expect(storedUser, isNotNull);
     expect(storedUser!.passwordHash, isNot('secret1'));
     expect(storedUser.timezone, 'Africa/Accra');
