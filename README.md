@@ -58,3 +58,16 @@ Body:
 ### `GET /auth/me`
 
 Requires `Authorization: Bearer <token>`.
+
+
+## Phase 2
+
+Authenticated plan CRUD endpoints:
+
+- `GET /plans`
+- `POST /plans`
+- `GET /plans/{id}`
+- `PATCH /plans/{id}`
+- `DELETE /plans/{id}`
+
+All `/plans` endpoints require `Authorization: Bearer <token>`.
