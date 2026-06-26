@@ -1,6 +1,7 @@
 import 'package:dart_frog/dart_frog.dart';
 import 'package:fit_prep_backend/controllers/auth_controller.dart';
 import 'package:fit_prep_backend/controllers/plan_controller.dart';
+import 'package:fit_prep_backend/middleware/cors_middleware.dart';
 import 'package:fit_prep_backend/repositories/plan_repository.dart';
 import 'package:fit_prep_backend/repositories/user_repository.dart';
 import 'package:fit_prep_backend/services/auth_service.dart';
@@ -24,6 +25,7 @@ final PlanService _planService = PlanService(
 
 Handler middleware(Handler handler) {
   return handler
+      .use(cors())
       .use(requestLogger())
       .use(provider<UserRepository>((context) => _userRepository))
       .use(provider<JwtService>((context) => _jwtService))
