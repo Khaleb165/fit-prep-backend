@@ -48,6 +48,19 @@ class Plan {
   final String reminder;
   final DateTime createdAt;
 
+  String get reminderTime {
+    if (reminder != 'one_hour_before') {
+      return packingTime;
+    }
+
+    final parts = packingTime.split(':');
+    final packingHour = int.parse(parts[0]);
+    final minute = parts[1];
+    final reminderHour = (packingHour + 23) % 24;
+
+    return '${reminderHour.toString().padLeft(2, '0')}:$minute';
+  }
+
   Map<String, Object?> toJson() {
     return {
       'id': id,
@@ -57,6 +70,7 @@ class Plan {
       'gym_session': gymSession,
       'packing_time': packingTime,
       'reminder': reminder,
+      'reminder_time': reminderTime,
       'created_at': createdAt.toIso8601String(),
     };
   }
