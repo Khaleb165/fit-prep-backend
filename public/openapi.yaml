@@ -334,6 +334,11 @@ components:
           enum:
             - on_time
             - one_hour_before
+        reminder_time:
+          type: string
+          readOnly: true
+          description: Effective local reminder time derived from packing_time and reminder.
+          example: "06:30"
         created_at:
           type: string
           format: date-time

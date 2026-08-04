@@ -126,11 +126,25 @@ class PlanService {
       );
     }
 
+    final itemIds = <String>{};
     for (final item in items) {
+      final itemId = item.id.trim();
+      if (itemId.isEmpty) {
+        throw const PlanServiceException(
+          code: PlanErrorCode.validation,
+          message: 'Checklist item id is required.',
+        );
+      }
       if (item.title.trim().isEmpty) {
         throw const PlanServiceException(
           code: PlanErrorCode.validation,
           message: 'Checklist item title is required.',
+        );
+      }
+      if (!itemIds.add(itemId)) {
+        throw const PlanServiceException(
+          code: PlanErrorCode.validation,
+          message: 'Checklist item ids must be unique within a plan.',
         );
       }
     }

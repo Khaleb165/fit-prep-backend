@@ -50,6 +50,7 @@ void main() {
     expect(plan.items, hasLength(2));
     expect(plan.gymSession, 'morning');
     expect(plan.packingTime, '07:30');
+    expect(plan.reminderTime, '06:30');
     expect(plan.reminder, 'one_hour_before');
     expect(plans, hasLength(1));
     expect(plans.first.id, plan.id);
@@ -109,6 +110,41 @@ void main() {
       ),
       throwsA(isA<PlanServiceException>()),
     );
+  });
+
+  test('derives reminder time across midnight', () async {
+    final plan = await planService.createPlan(
+      user: user,
+      title: 'Morning Workout Plan',
+      items: items,
+      gymSession: 'morning',
+      packingTime: '00:15',
+      reminder: 'one_hour_before',
+    );
+
+    expect(plan.reminderTime, '23:15');
+  });
+
+  test('rejects missing and duplicate checklist item ids', () async {
+    for (final invalidItems in <List<PlanItem>>[
+      const <PlanItem>[PlanItem(id: '', title: 'Shoes')],
+      const <PlanItem>[
+        PlanItem(id: 'same-id', title: 'Shoes'),
+        PlanItem(id: 'same-id', title: 'Towel'),
+      ],
+    ]) {
+      expect(
+        () => planService.createPlan(
+          user: user,
+          title: 'Morning Workout Plan',
+          items: invalidItems,
+          gymSession: 'morning',
+          packingTime: '07:30',
+          reminder: 'on_time',
+        ),
+        throwsA(isA<PlanServiceException>()),
+      );
+    }
   });
 
   test('deletes a plan', () async {

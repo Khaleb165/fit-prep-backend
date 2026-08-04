@@ -70,6 +70,7 @@ void main() {
     expect(planItems, hasLength(2));
     expect(plan['gym_session'], 'morning');
     expect(plan['packing_time'], '07:30');
+    expect(plan['reminder_time'], '06:30');
     expect(plan['reminder'], 'one_hour_before');
   });
 
