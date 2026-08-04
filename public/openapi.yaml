@@ -4,7 +4,8 @@ info:
   description: API documentation for the Fit Prep backend
   version: 1.0.0
 servers:
-  - url: https://fit-prep-backend.onrender.com
+  # - url: https://fit-prep-backend.onrender.com
+  - url: http://localhost:8080
 paths:
   /auth/login:
     post:
