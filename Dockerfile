@@ -24,6 +24,7 @@ WORKDIR /app
 
 COPY --from=build /app/build/bin/server /app/bin/server
 COPY --from=build /app/build/public /app/public
+COPY --from=build /app/database /app/database
 
 EXPOSE 8080
 
