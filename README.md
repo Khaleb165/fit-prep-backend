@@ -24,6 +24,17 @@ Set a real JWT secret outside local development:
 JWT_SECRET="replace-with-a-long-random-secret" dart_frog dev
 ```
 
+For persistent users and plans, configure PostgreSQL and apply the schema:
+
+```sh
+cp .env.example .env
+dart run bin/migrate.dart
+```
+
+In a deployed environment, set `DATABASE_URL`. Set
+`DATABASE_AUTO_MIGRATE=true` if the server should apply the idempotent schema
+on startup; the Docker image includes the schema file for this purpose.
+
 ## Endpoints
 
 ### `GET /`
@@ -71,3 +82,18 @@ Authenticated plan CRUD endpoints:
 - `DELETE /plans/{id}`
 
 All `/plans` endpoints require `Authorization: Bearer <token>`.
+
+The plan request follows the Flutter creation flow:
+
+```json
+{
+  "title": "Morning Workout Plan",
+  "items": [{"id": "water", "title": "Water bottle", "is_checked": false}],
+  "gym_session": "morning",
+  "packing_time": "07:30",
+  "reminder": "one_hour_before"
+}
+```
+
+Plan responses also include `reminder_time`, derived from `packing_time` and
+`reminder` (for this example, `06:30`). Times are recurring local wall times.
