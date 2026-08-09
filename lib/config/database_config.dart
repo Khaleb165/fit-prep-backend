@@ -10,7 +10,7 @@ class DatabaseConfig {
     final env = environment ?? Environment.current();
 
     return DatabaseConfig(
-      databaseUrl: env.get('DATABASE_URL'),
+      databaseUrl: env.get('DATABASE_URL_PROD'),
       autoMigrate: env.getBool('DATABASE_AUTO_MIGRATE'),
     );
   }
