@@ -1,14 +1,18 @@
 import 'package:fit_prep_backend/models/plan.dart';
 import 'package:fit_prep_backend/models/user.dart';
 import 'package:fit_prep_backend/repositories/plan_repository.dart';
+import 'package:timezone/data/latest_all.dart' as tz_data;
+import 'package:timezone/timezone.dart' as tz;
 import 'package:uuid/uuid.dart';
 
 class PlanService {
   PlanService({
     required PlanRepository planRepository,
     Uuid? uuid,
+    DateTime Function()? clock,
   }) : _planRepository = planRepository,
-       _uuid = uuid ?? const Uuid();
+       _uuid = uuid ?? const Uuid(),
+       _clock = clock ?? DateTime.now;
 
   static const Set<String> gymSessions = {
     'morning',
@@ -19,9 +23,12 @@ class PlanService {
     'on_time',
     'one_hour_before',
   };
+  static const Duration _resetLeadTime = Duration(hours: 6);
 
   final PlanRepository _planRepository;
   final Uuid _uuid;
+  final DateTime Function() _clock;
+  static bool _timezonesInitialized = false;
 
   Future<Plan> createPlan({
     required User user,
@@ -45,8 +52,16 @@ class PlanService {
     return _planRepository.create(plan);
   }
 
-  Future<List<Plan>> listPlans(User user) {
-    return _planRepository.listByUserId(user.id);
+  Future<List<Plan>> listPlans(User user) async {
+    final plans = await _planRepository.listByUserId(user.id);
+    final refreshedPlans = <Plan>[];
+    for (final plan in plans) {
+      refreshedPlans.add(
+        await _applyDailyChecklistReset(plan: plan, user: user),
+      );
+    }
+
+    return refreshedPlans;
   }
 
   Future<Plan> getPlan({
@@ -65,7 +80,7 @@ class PlanService {
       );
     }
 
-    return plan;
+    return _applyDailyChecklistReset(plan: plan, user: user);
   }
 
   Future<Plan> updatePlan({
@@ -78,12 +93,19 @@ class PlanService {
     required String reminder,
   }) async {
     final existingPlan = await getPlan(user: user, planId: planId);
-    final updatedPlan = existingPlan.copyWith(
+    final normalizedPackingTime = _validatePackingTime(packingTime);
+    final updatedPlan = Plan(
+      id: existingPlan.id,
+      userId: existingPlan.userId,
       title: _validateTitle(title),
       items: _validateItems(items),
       gymSession: _validateGymSession(gymSession),
-      packingTime: _validatePackingTime(packingTime),
+      packingTime: normalizedPackingTime,
       reminder: _validateReminder(reminder),
+      createdAt: existingPlan.createdAt,
+      lastChecklistResetKey: existingPlan.packingTime == normalizedPackingTime
+          ? existingPlan.lastChecklistResetKey
+          : null,
     );
 
     return _planRepository.update(updatedPlan);
@@ -103,6 +125,89 @@ class PlanService {
         code: PlanErrorCode.notFound,
         message: 'Plan not found.',
       );
+    }
+  }
+
+  Future<Plan> _applyDailyChecklistReset({
+    required Plan plan,
+    required User user,
+  }) async {
+    final now = _clock();
+    final location = _locationFor(user.timezone);
+    final localNow = tz.TZDateTime.from(now, location);
+    final parts = plan.packingTime.split(':');
+    final workoutDateTime = _nextWorkoutDateTime(
+      location: location,
+      hour: int.parse(parts[0]),
+      minute: int.parse(parts[1]),
+      now: localNow,
+    );
+    final resetBoundary = workoutDateTime.subtract(
+      _resetLeadTime,
+    );
+    final workoutDateKey = _dateKey(workoutDateTime);
+
+    if (localNow.isBefore(resetBoundary) ||
+        plan.lastChecklistResetKey == workoutDateKey) {
+      return plan;
+    }
+
+    final resetPlan = plan.copyWith(
+      items: plan.items
+          .map(
+            (item) => PlanItem(
+              id: item.id,
+              title: item.title,
+            ),
+          )
+          .toList(),
+      lastChecklistResetKey: workoutDateKey,
+    );
+
+    return _planRepository.update(resetPlan);
+  }
+
+  tz.TZDateTime _nextWorkoutDateTime({
+    required tz.Location location,
+    required int hour,
+    required int minute,
+    required tz.TZDateTime now,
+  }) {
+    var workoutDateTime = tz.TZDateTime(
+      location,
+      now.year,
+      now.month,
+      now.day,
+      hour,
+      minute,
+    );
+
+    if (!workoutDateTime.isAfter(now)) {
+      workoutDateTime = workoutDateTime.add(const Duration(days: 1));
+    }
+
+    return workoutDateTime;
+  }
+
+  String _dateKey(DateTime dateTime) {
+    final month = dateTime.month.toString().padLeft(2, '0');
+    final day = dateTime.day.toString().padLeft(2, '0');
+    return '${dateTime.year}-$month-$day';
+  }
+
+  tz.Location _locationFor(String timezone) {
+    _ensureTimezones();
+    try {
+      return tz.getLocation(timezone);
+    } on tz.LocationNotFoundException {
+      return tz.UTC;
+    }
+  }
+
+  static void _ensureTimezones() {
+    if (!_timezonesInitialized) {
+      tz_data.initializeTimeZones();
+      _timezonesInitialized = true;
     }
   }
 
