@@ -1,6 +1,7 @@
 import 'package:dart_frog/dart_frog.dart';
 import 'package:fit_prep_backend/config/database_config.dart';
 import 'package:fit_prep_backend/controllers/auth_controller.dart';
+import 'package:fit_prep_backend/controllers/fitness_preset_controller.dart';
 import 'package:fit_prep_backend/controllers/plan_controller.dart';
 import 'package:fit_prep_backend/database/app_database.dart';
 import 'package:fit_prep_backend/middleware/cors_middleware.dart';
@@ -9,6 +10,7 @@ import 'package:fit_prep_backend/repositories/postgres_plan_repository.dart';
 import 'package:fit_prep_backend/repositories/postgres_user_repository.dart';
 import 'package:fit_prep_backend/repositories/user_repository.dart';
 import 'package:fit_prep_backend/services/auth_service.dart';
+import 'package:fit_prep_backend/services/fitness_preset_service.dart';
 import 'package:fit_prep_backend/services/plan_service.dart';
 import 'package:fit_prep_backend/utils/hashing.dart';
 import 'package:fit_prep_backend/utils/jwt.dart';
@@ -33,6 +35,7 @@ final AuthService _authService = AuthService(
 final PlanService _planService = PlanService(
   planRepository: _planRepository,
 );
+const FitnessPresetService _fitnessPresetService = FitnessPresetService();
 
 Handler middleware(Handler handler) {
   return handler
@@ -43,8 +46,14 @@ Handler middleware(Handler handler) {
       .use(provider<AuthService>((context) => _authService))
       .use(provider<PlanRepository>((context) => _planRepository))
       .use(provider<PlanService>((context) => _planService))
+      .use(provider<FitnessPresetService>((context) => _fitnessPresetService))
       .use(provider<AuthController>((context) => const AuthController()))
-      .use(provider<PlanController>((context) => const PlanController()));
+      .use(provider<PlanController>((context) => const PlanController()))
+      .use(
+        provider<FitnessPresetController>(
+          (context) => const FitnessPresetController(),
+        ),
+      );
 }
 
 UserRepository _createUserRepository(AppDatabase? database) {
