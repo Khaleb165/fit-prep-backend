@@ -78,7 +78,8 @@ UPDATE plans
 SET title = @title,
     gym_session = @gym_session,
     packing_time = @packing_time,
-    reminder = @reminder
+    reminder = @reminder,
+    last_checklist_reset_key = @last_checklist_reset_key
 WHERE id = @id AND user_id = @user_id
 '''),
         parameters: _updatePlanParameters(plan),
@@ -112,7 +113,8 @@ INSERT INTO plans (
   gym_session,
   packing_time,
   reminder,
-  created_at
+  created_at,
+  last_checklist_reset_key
 ) VALUES (
   @id,
   @user_id,
@@ -120,7 +122,8 @@ INSERT INTO plans (
   @gym_session,
   @packing_time,
   @reminder,
-  @created_at
+  @created_at,
+  @last_checklist_reset_key
 )
 '''),
       parameters: _planParameters(plan),
@@ -171,6 +174,7 @@ SELECT
   plans.packing_time,
   plans.reminder,
   plans.created_at,
+  plans.last_checklist_reset_key,
   plan_items.id AS item_id,
   plan_items.title AS item_title,
   plan_items.is_checked AS item_is_checked
@@ -196,6 +200,7 @@ ORDER BY plans.created_at DESC, plan_items.sort_order ASC
           packingTime: values['packing_time'] as String,
           reminder: values['reminder'] as String,
           createdAt: (values['created_at'] as DateTime).toUtc(),
+          lastChecklistResetKey: values['last_checklist_reset_key'] as String?,
         ),
       );
 
@@ -223,6 +228,7 @@ ORDER BY plans.created_at DESC, plan_items.sort_order ASC
       'packing_time': plan.packingTime,
       'reminder': plan.reminder,
       'created_at': plan.createdAt.toUtc(),
+      'last_checklist_reset_key': plan.lastChecklistResetKey,
     };
   }
 
@@ -234,6 +240,7 @@ ORDER BY plans.created_at DESC, plan_items.sort_order ASC
       'gym_session': plan.gymSession,
       'packing_time': plan.packingTime,
       'reminder': plan.reminder,
+      'last_checklist_reset_key': plan.lastChecklistResetKey,
     };
   }
 }
@@ -247,6 +254,7 @@ class _PlanBuilder {
     required this.packingTime,
     required this.reminder,
     required this.createdAt,
+    this.lastChecklistResetKey,
   });
 
   final String id;
@@ -256,6 +264,7 @@ class _PlanBuilder {
   final String packingTime;
   final String reminder;
   final DateTime createdAt;
+  final String? lastChecklistResetKey;
   final List<PlanItem> items = <PlanItem>[];
 
   Plan build() {
@@ -268,6 +277,7 @@ class _PlanBuilder {
       packingTime: packingTime,
       reminder: reminder,
       createdAt: createdAt,
+      lastChecklistResetKey: lastChecklistResetKey,
     );
   }
 }
