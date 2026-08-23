@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS plans (
   packing_time TEXT NOT NULL,
   reminder TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_checklist_reset_key TEXT,
   CONSTRAINT plans_title_not_blank CHECK (length(trim(title)) > 0),
   CONSTRAINT plans_gym_session_valid CHECK (
     gym_session IN ('morning', 'afternoon', 'evening')
@@ -39,6 +40,9 @@ CREATE TABLE IF NOT EXISTS plans (
 
 CREATE INDEX IF NOT EXISTS plans_user_id_created_at_idx
   ON plans (user_id, created_at DESC);
+
+ALTER TABLE plans
+  ADD COLUMN IF NOT EXISTS last_checklist_reset_key TEXT;
 
 CREATE TABLE IF NOT EXISTS plan_items (
   plan_id TEXT NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
