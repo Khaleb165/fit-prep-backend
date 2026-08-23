@@ -343,3 +343,9 @@ components:
         created_at:
           type: string
           format: date-time
+        last_checklist_reset_key:
+          type: string
+          nullable: true
+          readOnly: true
+          description: Date key (yyyy-MM-dd) of the last time checked items were automatically cleared. Set by the server.
+          example: "2026-08-14"
