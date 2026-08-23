@@ -177,6 +177,35 @@ paths:
           description: Unauthorized
         "404":
           description: Plan not found
+  /presets:
+    get:
+      summary: Fetch gym essentials and healthy snacks presets
+      tags:
+        - Presets
+      responses:
+        "200":
+          description: Presets fetched successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - presets
+                properties:
+                  presets:
+                    type: object
+                    required:
+                      - gym_essentials
+                      - healthy_snacks
+                    properties:
+                      gym_essentials:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/PresetListItem"
+                      healthy_snacks:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/HealthySnackPreset"
 components:
   securitySchemes:
     bearerAuth:
@@ -349,3 +378,31 @@ components:
           readOnly: true
           description: Date key (yyyy-MM-dd) of the last time checked items were automatically cleared. Set by the server.
           example: "2026-08-14"
+    PresetListItem:
+      type: object
+      required:
+        - id
+        - title
+      properties:
+        id:
+          type: string
+          example: water-bottle
+        title:
+          type: string
+          example: Water bottle
+    HealthySnackPreset:
+      type: object
+      required:
+        - id
+        - title
+        - description
+      properties:
+        id:
+          type: string
+          example: greek-yogurt-with-berries
+        title:
+          type: string
+          example: Greek yogurt with berries
+        description:
+          type: string
+          example: Great before or after the gym because it combines quick carbs with protein to support energy and recovery.
