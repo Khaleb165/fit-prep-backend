@@ -44,6 +44,9 @@ CREATE INDEX IF NOT EXISTS plans_user_id_created_at_idx
 ALTER TABLE plans
   ADD COLUMN IF NOT EXISTS last_checklist_reset_key TEXT;
 
+ALTER TABLE plans
+  ADD COLUMN IF NOT EXISTS revision INTEGER NOT NULL DEFAULT 0;
+
 CREATE TABLE IF NOT EXISTS plan_items (
   plan_id TEXT NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
   id TEXT NOT NULL,
