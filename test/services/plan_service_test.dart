@@ -162,11 +162,8 @@ void main() {
     expect(await planService.listPlans(user), isEmpty);
   });
 
-  test('throws for missing plan', () async {
-    expect(
-      () => planService.deletePlan(user: user, planId: 'missing-plan'),
-      throwsA(isA<PlanServiceException>()),
-    );
+  test('deleting a missing plan is safe to retry', () async {
+    await planService.deletePlan(user: user, planId: 'missing-plan');
   });
 
   group('daily checklist reset', () {
@@ -190,8 +187,9 @@ void main() {
       );
     });
 
-    test('clears checked items after the reset boundary', () async {
+    test('clears yesterday checks at midnight', () async {
       await _createPlan(clockedPlanService, accraUser);
+      now = DateTime.utc(2026, 8, 15);
 
       final plans = await clockedPlanService.listPlans(accraUser);
 
@@ -199,17 +197,17 @@ void main() {
         plans.single.items.every((item) => !item.isChecked),
         isTrue,
       );
-      expect(plans.single.lastChecklistResetKey, '2026-08-14');
+      expect(plans.single.lastChecklistResetKey, '2026-08-15');
     });
 
-    test('keeps checked items before the reset boundary', () async {
+    test('keeps checks made today regardless of packing time', () async {
       now = DateTime.utc(2026, 8, 14, 1);
       await _createPlan(clockedPlanService, accraUser);
 
       final plans = await clockedPlanService.listPlans(accraUser);
 
       expect(plans.single.items[1].isChecked, isTrue);
-      expect(plans.single.lastChecklistResetKey, isNull);
+      expect(plans.single.lastChecklistResetKey, '2026-08-14');
     });
 
     test('resets at most once per workout day', () async {
@@ -236,19 +234,20 @@ void main() {
     });
 
     test(
-      'does not reset when the workout time has already passed today',
+      'catches up after missed days even after packing time',
       () async {
         now = DateTime.utc(2026, 8, 14, 8, 30);
         await _createPlan(clockedPlanService, accraUser);
+        now = DateTime.utc(2026, 8, 18, 8, 30);
 
         final plans = await clockedPlanService.listPlans(accraUser);
 
-        expect(plans.single.items[1].isChecked, isTrue);
-        expect(plans.single.lastChecklistResetKey, isNull);
+        expect(plans.single.items[1].isChecked, isFalse);
+        expect(plans.single.lastChecklistResetKey, '2026-08-18');
       },
     );
 
-    test('applies midnight wrap when computing the reset boundary', () async {
+    test('late packing time does not advance the completion day', () async {
       now = DateTime.utc(2026, 8, 14, 23);
       await clockedPlanService.createPlan(
         user: accraUser,
@@ -261,7 +260,7 @@ void main() {
 
       final plans = await clockedPlanService.listPlans(accraUser);
 
-      expect(plans.single.lastChecklistResetKey, '2026-08-15');
+      expect(plans.single.lastChecklistResetKey, '2026-08-14');
     });
 
     test('falls back to UTC for unknown timezones', () async {
@@ -274,6 +273,7 @@ void main() {
         createdAt: DateTime.utc(2026),
       );
       await _createPlan(clockedPlanService, unknownZoneUser);
+      now = DateTime.utc(2026, 8, 15);
 
       final plans = await clockedPlanService.listPlans(unknownZoneUser);
 
@@ -281,11 +281,11 @@ void main() {
         plans.single.items.every((item) => !item.isChecked),
         isTrue,
       );
-      expect(plans.single.lastChecklistResetKey, '2026-08-14');
+      expect(plans.single.lastChecklistResetKey, '2026-08-15');
     });
 
     test(
-      'clears the reset key when packing time changes but not on toggles',
+      'packing time changes and toggles retain the calendar day',
       () async {
         await _createPlan(clockedPlanService, accraUser);
         final resetPlan = (await clockedPlanService.listPlans(
@@ -317,12 +317,13 @@ void main() {
           reminder: 'on_time',
         );
 
-        expect(rescheduledPlan.lastChecklistResetKey, isNull);
+        expect(rescheduledPlan.lastChecklistResetKey, '2026-08-14');
       },
     );
 
     test('getPlan applies the daily reset', () async {
       final plan = await _createPlan(clockedPlanService, accraUser);
+      now = DateTime.utc(2026, 8, 15);
 
       final refreshedPlan = await clockedPlanService.getPlan(
         user: accraUser,
@@ -333,7 +334,91 @@ void main() {
         refreshedPlan.items.every((item) => !item.isChecked),
         isTrue,
       );
-      expect(refreshedPlan.lastChecklistResetKey, '2026-08-14');
+      expect(refreshedPlan.lastChecklistResetKey, '2026-08-15');
+      expect(refreshedPlan.revision, plan.revision);
+    });
+
+    test('a delayed old-day edit preserves current-day completion', () async {
+      final plan = await _createPlan(clockedPlanService, accraUser);
+      now = DateTime.utc(2026, 8, 15, 12);
+      final updated = await clockedPlanService.updatePlan(
+        user: accraUser,
+        planId: plan.id,
+        title: plan.title,
+        items: plan.items,
+        gymSession: plan.gymSession,
+        packingTime: plan.packingTime,
+        reminder: plan.reminder,
+        completionDate: '2026-08-14',
+        expectedRevision: plan.revision,
+      );
+      expect(updated.items.every((item) => !item.isChecked), isTrue);
+      expect(updated.lastChecklistResetKey, '2026-08-15');
+      expect(updated.revision, 1);
+      final checkedToday = await clockedPlanService.updatePlan(
+        user: accraUser,
+        planId: plan.id,
+        title: plan.title,
+        items: const [PlanItem(id: 'item-2', title: 'Towel', isChecked: true)],
+        gymSession: plan.gymSession,
+        packingTime: plan.packingTime,
+        reminder: plan.reminder,
+        completionDate: '2026-08-15',
+        expectedRevision: 1,
+      );
+      final delayed = await clockedPlanService.updatePlan(
+        user: accraUser,
+        planId: plan.id,
+        title: 'Renamed offline',
+        items: const [PlanItem(id: 'item-2', title: 'Renamed towel')],
+        gymSession: plan.gymSession,
+        packingTime: plan.packingTime,
+        reminder: plan.reminder,
+        completionDate: '2026-08-14',
+        expectedRevision: checkedToday.revision,
+      );
+      expect(delayed.items.single.isChecked, isTrue);
+    });
+
+    test('stale revision cannot overwrite another device', () async {
+      final plan = await _createPlan(clockedPlanService, accraUser);
+      Future<Plan> update() => clockedPlanService.updatePlan(
+        user: accraUser,
+        planId: plan.id,
+        title: plan.title,
+        items: [],
+        gymSession: plan.gymSession,
+        packingTime: plan.packingTime,
+        reminder: plan.reminder,
+        completionDate: '2026-08-14',
+        expectedRevision: plan.revision,
+      );
+      expect((await update()).items, isEmpty);
+      await expectLater(
+        update(),
+        throwsA(
+          isA<PlanServiceException>().having(
+            (e) => e.code,
+            'code',
+            PlanErrorCode.conflict,
+          ),
+        ),
+      );
+    });
+
+    test('uses the account timezone rather than the server timezone', () async {
+      final newYork = user.copyWith(timezone: 'America/New_York');
+      now = DateTime.utc(2026, 3, 8, 4, 59);
+      final plan = await _createPlan(clockedPlanService, newYork);
+      expect(plan.lastChecklistResetKey, '2026-03-07');
+      now = DateTime.utc(2026, 3, 8, 5);
+      expect(
+        (await clockedPlanService.getPlan(
+          user: newYork,
+          planId: plan.id,
+        )).items.every((i) => !i.isChecked),
+        isTrue,
+      );
     });
   });
 }
