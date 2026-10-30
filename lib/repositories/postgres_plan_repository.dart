@@ -70,20 +70,27 @@ WHERE id = @id AND user_id = @user_id
   }
 
   @override
-  Future<Plan> update(Plan plan) async {
-    await _database.runTx((session) async {
-      await session.execute(
+  Future<Plan> update(Plan plan, {int? expectedRevision}) async {
+    return _database.runTx((session) async {
+      final result = await session.execute(
         Sql.named('''
 UPDATE plans
 SET title = @title,
     gym_session = @gym_session,
     packing_time = @packing_time,
     reminder = @reminder,
-    last_checklist_reset_key = @last_checklist_reset_key
+    last_checklist_reset_key = @last_checklist_reset_key,
+    revision = revision + 1
 WHERE id = @id AND user_id = @user_id
+  AND (CAST(@expected_revision AS INTEGER) IS NULL OR revision = @expected_revision)
+RETURNING revision
 '''),
-        parameters: _updatePlanParameters(plan),
+        parameters: {
+          ..._updatePlanParameters(plan),
+          'expected_revision': expectedRevision,
+        },
       );
+      if (result.isEmpty) throw const PlanConflictException();
 
       await session.execute(
         Sql.named('DELETE FROM plan_items WHERE plan_id = @plan_id'),
@@ -93,9 +100,8 @@ WHERE id = @id AND user_id = @user_id
       );
 
       await _insertItems(session, plan);
+      return plan.copyWith(revision: result.first[0]! as int);
     });
-
-    return plan;
   }
 
   @override
@@ -175,6 +181,7 @@ SELECT
   plans.reminder,
   plans.created_at,
   plans.last_checklist_reset_key,
+  plans.revision,
   plan_items.id AS item_id,
   plan_items.title AS item_title,
   plan_items.is_checked AS item_is_checked
@@ -201,6 +208,7 @@ ORDER BY plans.created_at DESC, plan_items.sort_order ASC
           reminder: values['reminder'] as String,
           createdAt: (values['created_at'] as DateTime).toUtc(),
           lastChecklistResetKey: values['last_checklist_reset_key'] as String?,
+          revision: values['revision'] as int,
         ),
       );
 
@@ -254,6 +262,7 @@ class _PlanBuilder {
     required this.packingTime,
     required this.reminder,
     required this.createdAt,
+    required this.revision,
     this.lastChecklistResetKey,
   });
 
@@ -265,6 +274,7 @@ class _PlanBuilder {
   final String reminder;
   final DateTime createdAt;
   final String? lastChecklistResetKey;
+  final int revision;
   final List<PlanItem> items = <PlanItem>[];
 
   Plan build() {
@@ -278,6 +288,7 @@ class _PlanBuilder {
       reminder: reminder,
       createdAt: createdAt,
       lastChecklistResetKey: lastChecklistResetKey,
+      revision: revision,
     );
   }
 }
