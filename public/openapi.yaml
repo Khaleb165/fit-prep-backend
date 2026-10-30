@@ -291,6 +291,14 @@ components:
         - packing_time
         - reminder
       properties:
+        completion_date:
+          type: string
+          format: date
+          description: Calendar day of the supplied checkmarks in the account timezone. Past-day edits cannot change today's checkmarks. Omission is supported for legacy online clients only.
+        expected_revision:
+          type: integer
+          minimum: 0
+          description: Revision returned by the server. Supply on PATCH to prevent lost updates; a mismatch returns 409. Retain local changes for user review.
         title:
           type: string
           example: Morning Workout Plan
@@ -340,6 +348,15 @@ components:
     Plan:
       type: object
       properties:
+        completion_date:
+          type: string
+          format: date
+          readOnly: true
+          description: Calendar day for the returned checkmarks in the account timezone. A new day returns unchecked items without deleting the list.
+        revision:
+          type: integer
+          readOnly: true
+          description: Increments on updates; send as expected_revision on PATCH.
         id:
           type: string
         user_id:
@@ -376,7 +393,7 @@ components:
           type: string
           nullable: true
           readOnly: true
-          description: Date key (yyyy-MM-dd) of the last time checked items were automatically cleared. Set by the server.
+          description: Compatibility alias for completion_date. Reset is now calendar-day based, independent of packing time.
           example: "2026-08-14"
     PresetListItem:
       type: object
