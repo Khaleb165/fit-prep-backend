@@ -39,6 +39,7 @@ class PlanController {
         gymSession: _stringValue(body, 'gym_session'),
         packingTime: _stringValue(body, 'packing_time'),
         reminder: _stringValue(body, 'reminder'),
+        completionDate: body['completion_date']?.toString(),
       );
 
       return Response.json(
@@ -98,6 +99,8 @@ class PlanController {
         gymSession: _stringValue(body, 'gym_session'),
         packingTime: _stringValue(body, 'packing_time'),
         reminder: _stringValue(body, 'reminder'),
+        completionDate: body['completion_date']?.toString(),
+        expectedRevision: _revisionValue(body),
       );
 
       return Response.json(
@@ -137,6 +140,16 @@ class PlanController {
     return body[key]?.toString() ?? '';
   }
 
+  int? _revisionValue(Map<String, dynamic> body) {
+    final value = body['expected_revision'];
+    if (value == null) return null;
+    if (value is int && value >= 0) return value;
+    throw const PlanServiceException(
+      code: PlanErrorCode.validation,
+      message: 'expected_revision must be a non-negative integer.',
+    );
+  }
+
   List<PlanItem> _itemsValue(Map<String, dynamic> body) {
     final rawItems = body['items'];
     if (rawItems is! List) {
@@ -161,6 +174,7 @@ class PlanController {
       statusCode: switch (error.code) {
         PlanErrorCode.validation => HttpStatus.badRequest,
         PlanErrorCode.notFound => HttpStatus.notFound,
+        PlanErrorCode.conflict => HttpStatus.conflict,
       },
     );
   }

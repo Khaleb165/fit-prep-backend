@@ -23,7 +23,6 @@ class PlanService {
     'on_time',
     'one_hour_before',
   };
-  static const Duration _resetLeadTime = Duration(hours: 6);
 
   final PlanRepository _planRepository;
   final Uuid _uuid;
@@ -37,16 +36,24 @@ class PlanService {
     required String gymSession,
     required String packingTime,
     required String reminder,
+    String? completionDate,
   }) async {
+    final today = _today(user);
+    _validateCompletionDate(completionDate, today);
     final plan = Plan(
       id: _uuid.v4(),
       userId: user.id,
       title: _validateTitle(title),
-      items: _validateItems(items),
+      items: _itemsForDate(
+        _validateItems(items),
+        completionDate ?? today,
+        today,
+      ),
       gymSession: _validateGymSession(gymSession),
       packingTime: _validatePackingTime(packingTime),
       reminder: _validateReminder(reminder),
-      createdAt: DateTime.now().toUtc(),
+      createdAt: _clock().toUtc(),
+      lastChecklistResetKey: today,
     );
 
     return _planRepository.create(plan);
@@ -91,68 +98,65 @@ class PlanService {
     required String gymSession,
     required String packingTime,
     required String reminder,
+    String? completionDate,
+    int? expectedRevision,
   }) async {
     final existingPlan = await getPlan(user: user, planId: planId);
+    final today = _today(user);
+    _validateCompletionDate(completionDate, today);
     final normalizedPackingTime = _validatePackingTime(packingTime);
     final updatedPlan = Plan(
       id: existingPlan.id,
       userId: existingPlan.userId,
       title: _validateTitle(title),
-      items: _validateItems(items),
+      items: _itemsForDate(
+        _validateItems(items, allowEmpty: true),
+        completionDate ?? today,
+        today,
+        currentItems: existingPlan.items,
+      ),
       gymSession: _validateGymSession(gymSession),
       packingTime: normalizedPackingTime,
       reminder: _validateReminder(reminder),
       createdAt: existingPlan.createdAt,
-      lastChecklistResetKey: existingPlan.packingTime == normalizedPackingTime
-          ? existingPlan.lastChecklistResetKey
-          : null,
+      lastChecklistResetKey: today,
     );
 
-    return _planRepository.update(updatedPlan);
+    try {
+      return await _planRepository.update(
+        updatedPlan,
+        expectedRevision: expectedRevision,
+      );
+    } on PlanConflictException {
+      throw const PlanServiceException(
+        code: PlanErrorCode.conflict,
+        message: 'This plan changed on another device. Review before syncing.',
+      );
+    }
   }
 
   Future<void> deletePlan({
     required User user,
     required String planId,
   }) async {
-    final deleted = await _planRepository.deleteForUser(
+    await _planRepository.deleteForUser(
       id: planId,
       userId: user.id,
     );
 
-    if (!deleted) {
-      throw const PlanServiceException(
-        code: PlanErrorCode.notFound,
-        message: 'Plan not found.',
-      );
-    }
+    // Deletion is idempotent: a retry after a lost response also succeeds.
   }
 
   Future<Plan> _applyDailyChecklistReset({
     required Plan plan,
     required User user,
   }) async {
-    final now = _clock();
-    final location = _locationFor(user.timezone);
-    final localNow = tz.TZDateTime.from(now, location);
-    final parts = plan.packingTime.split(':');
-    final workoutDateTime = _nextWorkoutDateTime(
-      location: location,
-      hour: int.parse(parts[0]),
-      minute: int.parse(parts[1]),
-      now: localNow,
-    );
-    final resetBoundary = workoutDateTime.subtract(
-      _resetLeadTime,
-    );
-    final workoutDateKey = _dateKey(workoutDateTime);
-
-    if (localNow.isBefore(resetBoundary) ||
-        plan.lastChecklistResetKey == workoutDateKey) {
+    final today = _today(user);
+    if (plan.lastChecklistResetKey == today) {
       return plan;
     }
 
-    final resetPlan = plan.copyWith(
+    return plan.copyWith(
       items: plan.items
           .map(
             (item) => PlanItem(
@@ -161,32 +165,44 @@ class PlanService {
             ),
           )
           .toList(),
-      lastChecklistResetKey: workoutDateKey,
+      lastChecklistResetKey: today,
     );
-
-    return _planRepository.update(resetPlan);
   }
 
-  tz.TZDateTime _nextWorkoutDateTime({
-    required tz.Location location,
-    required int hour,
-    required int minute,
-    required tz.TZDateTime now,
-  }) {
-    var workoutDateTime = tz.TZDateTime(
-      location,
-      now.year,
-      now.month,
-      now.day,
-      hour,
-      minute,
-    );
+  String _today(User user) =>
+      _dateKey(tz.TZDateTime.from(_clock(), _locationFor(user.timezone)));
 
-    if (!workoutDateTime.isAfter(now)) {
-      workoutDateTime = workoutDateTime.add(const Duration(days: 1));
+  void _validateCompletionDate(String? value, String today) {
+    if (value == null) return; // Older online clients use today's date.
+    final parsed = DateTime.tryParse(value);
+    if (parsed == null ||
+        _dateKey(parsed) != value ||
+        value.compareTo(today) > 0) {
+      throw const PlanServiceException(
+        code: PlanErrorCode.validation,
+        message: 'completion_date must be a valid date no later than today.',
+      );
     }
+  }
 
-    return workoutDateTime;
+  List<PlanItem> _itemsForDate(
+    List<PlanItem> items,
+    String completionDate,
+    String today, {
+    List<PlanItem> currentItems = const [],
+  }) {
+    if (completionDate == today) return items;
+    final currentById = {for (final item in currentItems) item.id: item};
+    // Yesterday's delayed edits may change titles, but not today's completion.
+    return items
+        .map(
+          (item) => PlanItem(
+            id: item.id,
+            title: item.title,
+            isChecked: currentById[item.id]?.isChecked ?? false,
+          ),
+        )
+        .toList();
   }
 
   String _dateKey(DateTime dateTime) {
@@ -223,8 +239,11 @@ class PlanService {
     return normalizedTitle;
   }
 
-  List<PlanItem> _validateItems(List<PlanItem> items) {
-    if (items.isEmpty) {
+  List<PlanItem> _validateItems(
+    List<PlanItem> items, {
+    bool allowEmpty = false,
+  }) {
+    if (items.isEmpty && !allowEmpty) {
       throw const PlanServiceException(
         code: PlanErrorCode.validation,
         message: 'At least one checklist item is required.',
@@ -327,4 +346,5 @@ class PlanServiceException implements Exception {
 enum PlanErrorCode {
   validation,
   notFound,
+  conflict,
 }

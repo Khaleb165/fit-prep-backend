@@ -7,7 +7,7 @@ abstract class PlanRepository {
     required String id,
     required String userId,
   });
-  Future<Plan> update(Plan plan);
+  Future<Plan> update(Plan plan, {int? expectedRevision});
   Future<bool> deleteForUser({
     required String id,
     required String userId,
@@ -61,13 +61,23 @@ class InMemoryPlanRepository implements PlanRepository {
   }
 
   @override
-  Future<Plan> update(Plan plan) async {
-    _plansById[plan.id] = plan;
-    return plan;
+  Future<Plan> update(Plan plan, {int? expectedRevision}) async {
+    final current = _plansById[plan.id];
+    if (current == null ||
+        (expectedRevision != null && current.revision != expectedRevision)) {
+      throw const PlanConflictException();
+    }
+    final updated = plan.copyWith(revision: current.revision + 1);
+    _plansById[plan.id] = updated;
+    return updated;
   }
 
   @override
   Future<void> clear() async {
     _plansById.clear();
   }
+}
+
+class PlanConflictException implements Exception {
+  const PlanConflictException();
 }

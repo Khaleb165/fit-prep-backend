@@ -38,6 +38,7 @@ class Plan {
     required this.reminder,
     required this.createdAt,
     this.lastChecklistResetKey,
+    this.revision = 0,
   });
 
   final String id;
@@ -49,6 +50,7 @@ class Plan {
   final String reminder;
   final DateTime createdAt;
   final String? lastChecklistResetKey;
+  final int revision;
 
   String get reminderTime {
     if (reminder != 'one_hour_before') {
@@ -75,6 +77,8 @@ class Plan {
       'reminder_time': reminderTime,
       'created_at': createdAt.toIso8601String(),
       'last_checklist_reset_key': lastChecklistResetKey,
+      'completion_date': lastChecklistResetKey,
+      'revision': revision,
     };
   }
 
@@ -88,6 +92,7 @@ class Plan {
     String? reminder,
     DateTime? createdAt,
     String? lastChecklistResetKey,
+    int? revision,
   }) {
     return Plan(
       id: id ?? this.id,
@@ -100,6 +105,7 @@ class Plan {
       createdAt: createdAt ?? this.createdAt,
       lastChecklistResetKey:
           lastChecklistResetKey ?? this.lastChecklistResetKey,
+      revision: revision ?? this.revision,
     );
   }
 }
